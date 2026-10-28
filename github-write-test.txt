@@ -1,1 +1,0 @@
-Temporary write-access test requested in ChatGPT. If this file exists, the GitHub integration has write access to this repository.
