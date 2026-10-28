@@ -24,6 +24,12 @@ jobs:
           distribution: temurin
           java-version: "21"
 
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.3"
+          validate-wrappers: false
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -99,7 +105,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$PROJECT_ROOT"
-          ./gradlew --no-daemon tasks --all > /tmp/gradle-tasks.txt
+          gradle --no-daemon tasks --all > /tmp/gradle-tasks.txt
           if grep -qE '(^|[[:space:]])assembleStandardDebug([[:space:]]|$)' /tmp/gradle-tasks.txt; then
             TASK=assembleStandardDebug
           elif grep -qE '(^|[[:space:]])assembleDebug([[:space:]]|$)' /tmp/gradle-tasks.txt; then
@@ -110,7 +116,7 @@ jobs:
             exit 1
           fi
           echo "Building with task: $TASK"
-          ./gradlew --no-daemon "$TASK"
+          gradle --no-daemon "$TASK"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
