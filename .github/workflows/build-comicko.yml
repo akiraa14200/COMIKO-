@@ -110,6 +110,8 @@ jobs:
             TASK=assembleStandardDebug
           elif grep -qE '(^|[[:space:]])assembleDebug([[:space:]]|$)' /tmp/gradle-tasks.txt; then
             TASK=assembleDebug
+          elif grep -qE '^app:assemble([[:space:]]|$)' /tmp/gradle-tasks.txt; then
+            TASK=:app:assemble
           else
             echo "No standard debug assemble task was found. Available assemble tasks:"
             grep -i assemble /tmp/gradle-tasks.txt | head -80 || true
