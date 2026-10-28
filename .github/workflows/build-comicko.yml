@@ -100,6 +100,16 @@ jobs:
           print("Applied branding where the expected Mihon settings were found.")
           PY
 
+      - name: Ensure default locale metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          RES_DIR="$PROJECT_ROOT/app/src/main/res"
+          mkdir -p "$RES_DIR"
+          if [ ! -f "$RES_DIR/resources.properties" ]; then
+            printf "unqualifiedResLocale=en-US\\n" > "$RES_DIR/resources.properties"
+          fi
+
       - name: Detect and build debug variant
         shell: bash
         run: |
