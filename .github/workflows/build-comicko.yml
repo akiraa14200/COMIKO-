@@ -1,0 +1,121 @@
+name: Build Comicko APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "COMIKO-source.zip"
+      - ".github/workflows/build-comicko.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Extract source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f COMIKO-source.zip
+          mkdir -p source
+          unzip -q COMIKO-source.zip -d source
+          GRADLEW="$(find "$PWD/source" -type f -name gradlew -print -quit)"
+          if [ -z "$GRADLEW" ]; then
+            echo "Could not find gradlew inside COMIKO-source.zip."
+            echo "Archive entries:"
+            unzip -Z1 COMIKO-source.zip | head -80
+            exit 1
+          fi
+          ROOT="$(dirname "$GRADLEW")"
+          echo "PROJECT_ROOT=$ROOT" >> "$GITHUB_ENV"
+          chmod +x "$GRADLEW"
+          echo "Found Gradle project at: $ROOT"
+
+      - name: Apply Comicko branding
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, re
+          root = os.environ["PROJECT_ROOT"]
+          settings = os.path.join(root, "settings.gradle.kts")
+          if os.path.isfile(settings):
+              data = open(settings, encoding="utf-8").read()
+              data = re.sub(r'rootProject\.name\s*=\s*"[^"]+"', 'rootProject.name = "Comicko"', data)
+              open(settings, "w", encoding="utf-8").write(data)
+
+          gradle_files = []
+          for base, dirs, files in os.walk(root):
+              dirs[:] = [d for d in dirs if d not in {".git", ".gradle", "build"}]
+              for name in files:
+                  if name in {"build.gradle", "build.gradle.kts"} and os.path.basename(base) == "app":
+                      gradle_files.append(os.path.join(base, name))
+          for path in gradle_files:
+              data = open(path, encoding="utf-8").read()
+              data = data.replace('applicationId = "app.mihon"', 'applicationId = "app.comicko"')
+              data = data.replace('applicationId "app.mihon"', 'applicationId "app.comicko"')
+              open(path, "w", encoding="utf-8").write(data)
+
+          for base, dirs, files in os.walk(root):
+              dirs[:] = [d for d in dirs if d not in {".git", ".gradle", "build"}]
+              for name in files:
+                  if name.endswith(".xml"):
+                      path = os.path.join(base, name)
+                      try:
+                          data = open(path, encoding="utf-8").read()
+                      except (UnicodeDecodeError, OSError):
+                          continue
+                      updated = re.sub(
+                          r'(<string\s+name="app_name"[^>]*>)(.*?)(</string>)',
+                          lambda m: m.group(1) + "Comicko" + m.group(3)
+                          if "Mihon" in m.group(2) or "mihon" in m.group(2).lower()
+                          else m.group(0),
+                          data,
+                          flags=re.DOTALL,
+                      )
+                      if updated != data:
+                          open(path, "w", encoding="utf-8").write(updated)
+          print("Applied branding where the expected Mihon settings were found.")
+          PY
+
+      - name: Detect and build debug variant
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_ROOT"
+          ./gradlew --no-daemon tasks --all > /tmp/gradle-tasks.txt
+          if grep -qE '(^|[[:space:]])assembleStandardDebug([[:space:]]|$)' /tmp/gradle-tasks.txt; then
+            TASK=assembleStandardDebug
+          elif grep -qE '(^|[[:space:]])assembleDebug([[:space:]]|$)' /tmp/gradle-tasks.txt; then
+            TASK=assembleDebug
+          else
+            echo "No standard debug assemble task was found. Available assemble tasks:"
+            grep -i assemble /tmp/gradle-tasks.txt | head -80 || true
+            exit 1
+          fi
+          echo "Building with task: $TASK"
+          ./gradlew --no-daemon "$TASK"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: comicko-debug-apk
+          path: |
+            ${{ env.PROJECT_ROOT }}/**/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+          retention-days: 14
