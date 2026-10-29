@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
+      - "COMIKO-source.zip"
       - ".github/workflows/build-comicko.yml"
       - "README.md"
 
@@ -24,31 +25,73 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: platform-tools
-
-      - name: Get Yokai manga reader source
+      - name: Extract the source archive already in this repository
+        shell: bash
         run: |
           set -euo pipefail
-          git clone https://github.com/null2264/yokai.git source/yokai
-          echo "PROJECT_ROOT=$GITHUB_WORKSPACE/source/yokai" >> "$GITHUB_ENV"
+          test -f COMIKO-source.zip
+          mkdir -p source
+          unzip -q COMIKO-source.zip -d source
+          GRADLEW="$(find "$PWD/source" -type f -name gradlew -print -quit)"
+          if [ -z "$GRADLEW" ]; then
+            echo "::error::COMIKO-source.zip does not contain a Gradle wrapper script."
+            echo "Archive entries (first 80):"
+            unzip -Z1 COMIKO-source.zip | head -80
+            exit 1
+          fi
+          ROOT="$(dirname "$GRADLEW")"
+          if [ ! -f "$ROOT/app/build.gradle.kts" ] && [ ! -f "$ROOT/app/build.gradle" ]; then
+            echo "::error::Found gradlew but could not find app/build.gradle(.kts) beside it."
+            exit 1
+          fi
+          echo "PROJECT_ROOT=$ROOT" >> "$GITHUB_ENV"
+          echo "Found Android project: $ROOT"
+          chmod +x "$GRADLEW"
+          if [ ! -f "$ROOT/gradle/wrapper/gradle-wrapper.properties" ]; then
+            echo "Wrapper metadata missing; adding Gradle 8.14.4 configuration for this source archive."
+            mkdir -p "$ROOT/gradle/wrapper"
+            cat > "$ROOT/gradle/wrapper/gradle-wrapper.properties" <<'PROPS'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\\://services.gradle.org/distributions/gradle-8.14.4-bin.zip
+          networkTimeout=10000
+          validateDistributionUrl=true
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          PROPS
+          fi
+          cd "$ROOT"
+          git init -q
+          git config user.name "Comicko Build"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -qm "Prepare source archive for Comicko build"
 
-      - name: Apply Comicko branding
+      - name: Apply Comicko app ID and display name
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import os, re
           root = os.environ["PROJECT_ROOT"]
-          gradle_file = os.path.join(root, "app", "build.gradle.kts")
-          with open(gradle_file, encoding="utf-8") as f:
-              data = f.read()
-          data = data.replace('applicationId = "eu.kanade.tachiyomi"', 'applicationId = "app.comicko"')
-          with open(gradle_file, "w", encoding="utf-8") as f:
-              f.write(data)
-
+          gradle_files = [
+              os.path.join(root, "app", "build.gradle.kts"),
+              os.path.join(root, "app", "build.gradle"),
+          ]
+          found = False
+          for path in gradle_files:
+              if not os.path.isfile(path):
+                  continue
+              found = True
+              data = open(path, encoding="utf-8").read()
+              data = data.replace('applicationId = "eu.kanade.tachiyomi"', 'applicationId = "app.comicko"')
+              data = data.replace('applicationId "eu.kanade.tachiyomi"', 'applicationId "app.comicko"')
+              data = data.replace('applicationIdSuffix = ".debugYokai"', 'applicationIdSuffix = ""')
+              data = data.replace('applicationIdSuffix = ".debug"', 'applicationIdSuffix = ""')
+              open(path, "w", encoding="utf-8").write(data)
+          if not found:
+              raise SystemExit("Could not locate app Gradle file.")
+          changed = 0
           for base, dirs, files in os.walk(root):
               dirs[:] = [d for d in dirs if d not in {".git", ".gradle", "build"}]
               for name in files:
@@ -56,34 +99,32 @@ jobs:
                       continue
                   path = os.path.join(base, name)
                   try:
-                      with open(path, encoding="utf-8") as f:
-                          data = f.read()
+                      data = open(path, encoding="utf-8").read()
                   except (OSError, UnicodeDecodeError):
                       continue
                   updated = re.sub(
-                      r'(<string\s+name="app_name"[^>]*>).*?(</string>)',
-                      r'\1Comicko\2',
+                      r'(<string\\s+name="app_name"[^>]*>).*?(</string>)',
+                      r'\\1Comicko\\2',
                       data,
                       flags=re.DOTALL,
                   )
                   if updated != data:
-                      with open(path, "w", encoding="utf-8") as f:
-                          f.write(updated)
-          print("Comicko application ID and app display names applied.")
+                      open(path, "w", encoding="utf-8").write(updated)
+                      changed += 1
+          print(f"Applied Comicko branding; changed {changed} app-name resource files.")
           PY
 
-      - name: Build universal debug APK
+      - name: Build standard debug APK
         shell: bash
         run: |
           set -euo pipefail
           cd "$PROJECT_ROOT"
-          chmod +x ./gradlew
           ./gradlew --no-daemon :app:assembleStandardDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: comicko-debug-apk
-          path: source/yokai/app/build/outputs/apk/**/*.apk
+          path: source/**/app/build/outputs/apk/**/*.apk
           if-no-files-found: error
           retention-days: 14
