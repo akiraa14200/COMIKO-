@@ -114,6 +114,15 @@ jobs:
           print(f"Applied Comicko branding; changed {changed} app-name resource files.")
           PY
 
+      - name: Add Android per-app language metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          RES_DIR="$PROJECT_ROOT/app/src/main/res"
+          mkdir -p "$RES_DIR"
+          printf 'unqualifiedResLocale=en-US\n' > "$RES_DIR/resources.properties"
+          echo "Created $RES_DIR/resources.properties"
+
       - name: Detect available Android debug variant and build APK
         shell: bash
         run: |
