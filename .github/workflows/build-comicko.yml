@@ -32,7 +32,7 @@ jobs:
       - name: Get Yokai manga reader source
         run: |
           set -euo pipefail
-          git clone --depth 0 https://github.com/null2264/yokai.git source/yokai
+          git clone https://github.com/null2264/yokai.git source/yokai
           echo "PROJECT_ROOT=$GITHUB_WORKSPACE/source/yokai" >> "$GITHUB_ENV"
 
       - name: Apply Comicko branding
