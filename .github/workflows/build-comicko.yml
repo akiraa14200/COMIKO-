@@ -48,12 +48,12 @@ jobs:
           echo "Found Android project: $ROOT"
           chmod +x "$GRADLEW"
           if [ ! -f "$ROOT/gradle/wrapper/gradle-wrapper.properties" ]; then
-            echo "Wrapper metadata missing; adding Gradle 8.14.4 configuration for this source archive."
+            echo "Wrapper metadata missing; adding Gradle 9.3.1 configuration for this source archive."
             mkdir -p "$ROOT/gradle/wrapper"
             cat > "$ROOT/gradle/wrapper/gradle-wrapper.properties" <<'PROPS'
           distributionBase=GRADLE_USER_HOME
           distributionPath=wrapper/dists
-          distributionUrl=https\://services.gradle.org/distributions/gradle-8.14.4-bin.zip
+          distributionUrl=https\://services.gradle.org/distributions/gradle-9.3.1-bin.zip
           networkTimeout=10000
           validateDistributionUrl=true
           zipStoreBase=GRADLE_USER_HOME
