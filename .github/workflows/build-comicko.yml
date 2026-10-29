@@ -114,12 +114,29 @@ jobs:
           print(f"Applied Comicko branding; changed {changed} app-name resource files.")
           PY
 
-      - name: Build standard debug APK
+      - name: Detect available Android debug variant and build APK
         shell: bash
         run: |
           set -euo pipefail
           cd "$PROJECT_ROOT"
-          ./gradlew --no-daemon :app:assembleStandardDebug
+          ./gradlew --no-daemon :app:tasks --all > /tmp/comicko-gradle-tasks.txt
+          echo "Available app assemble tasks:"
+          grep -E '(^|:)assemble[^ ]*Debug([[:space:]]|$)' /tmp/comicko-gradle-tasks.txt || true
+          if grep -Eq '^assembleDebug([[:space:]]|$)' /tmp/comicko-gradle-tasks.txt; then
+            TASK=':app:assembleDebug'
+          elif grep -Eq '^assembleStandardDebug([[:space:]]|$)' /tmp/comicko-gradle-tasks.txt; then
+            TASK=':app:assembleStandardDebug'
+          else
+            TASK="$(grep -Eo '^assemble[A-Za-z0-9]*Debug([[:space:]]|$)' /tmp/comicko-gradle-tasks.txt | sed 's/[[:space:]]//g' | head -n 1)"
+            if [ -z "$TASK" ]; then
+              echo "::error::No Android debug assemble task was found in the app module."
+              cat /tmp/comicko-gradle-tasks.txt
+              exit 1
+            fi
+            TASK=":app:$TASK"
+          fi
+          echo "Building task: $TASK"
+          ./gradlew --no-daemon "$TASK"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
