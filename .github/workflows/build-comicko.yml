@@ -110,31 +110,18 @@ jobs:
             printf "unqualifiedResLocale=en-US\\n" > "$RES_DIR/resources.properties"
           fi
 
-      - name: Detect and build debug variant
+      - name: Build universal debug APK
         shell: bash
         run: |
           set -euo pipefail
           cd "$PROJECT_ROOT"
-          gradle --no-daemon tasks --all > /tmp/gradle-tasks.txt
-          if grep -qE '(^|[[:space:]])assembleStandardDebug([[:space:]]|$)' /tmp/gradle-tasks.txt; then
-            TASK=assembleStandardDebug
-          elif grep -qE '(^|[[:space:]])assembleDebug([[:space:]]|$)' /tmp/gradle-tasks.txt; then
-            TASK=assembleDebug
-          elif grep -qE '^app:assemble([[:space:]]|$)' /tmp/gradle-tasks.txt; then
-            TASK=:app:assemble
-          else
-            echo "No standard debug assemble task was found. Available assemble tasks:"
-            grep -i assemble /tmp/gradle-tasks.txt | head -80 || true
-            exit 1
-          fi
-          echo "Building with task: $TASK"
-          gradle --no-daemon "$TASK"
+          gradle --no-daemon :app:assembleUniversalDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: comicko-debug-apk
           path: |
-            ${{ env.PROJECT_ROOT }}/**/build/outputs/apk/**/*.apk
+            source/**/build/outputs/apk/**/*.apk
           if-no-files-found: error
           retention-days: 14
