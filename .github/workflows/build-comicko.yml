@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - "COMIKO-source.zip"
       - ".github/workflows/build-comicko.yml"
+      - "README.md"
 
 permissions:
   contents: read
@@ -13,9 +13,9 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
-      - name: Check out repository
+      - name: Check out Comicko repository
         uses: actions/checkout@v4
 
       - name: Set up Java
@@ -24,104 +24,66 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "9.3.1"
-          validate-wrappers: false
-
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
 
-      - name: Extract source archive
-        shell: bash
+      - name: Get Yokai manga reader source
         run: |
           set -euo pipefail
-          test -f COMIKO-source.zip
-          mkdir -p source
-          unzip -q COMIKO-source.zip -d source
-          GRADLEW="$(find "$PWD/source" -type f -name gradlew -print -quit)"
-          if [ -z "$GRADLEW" ]; then
-            echo "Could not find gradlew inside COMIKO-source.zip."
-            echo "Archive entries:"
-            unzip -Z1 COMIKO-source.zip | head -80
-            exit 1
-          fi
-          ROOT="$(dirname "$GRADLEW")"
-          echo "PROJECT_ROOT=$ROOT" >> "$GITHUB_ENV"
-          chmod +x "$GRADLEW"
-          echo "Found Gradle project at: $ROOT"
+          git clone --depth 0 https://github.com/null2264/yokai.git source/yokai
+          echo "PROJECT_ROOT=$GITHUB_WORKSPACE/source/yokai" >> "$GITHUB_ENV"
 
       - name: Apply Comicko branding
         shell: bash
         run: |
+          set -euo pipefail
           python3 - <<'PY'
           import os, re
           root = os.environ["PROJECT_ROOT"]
-          settings = os.path.join(root, "settings.gradle.kts")
-          if os.path.isfile(settings):
-              data = open(settings, encoding="utf-8").read()
-              data = re.sub(r'rootProject\.name\s*=\s*"[^"]+"', 'rootProject.name = "Comicko"', data)
-              open(settings, "w", encoding="utf-8").write(data)
-
-          gradle_files = []
-          for base, dirs, files in os.walk(root):
-              dirs[:] = [d for d in dirs if d not in {".git", ".gradle", "build"}]
-              for name in files:
-                  if name in {"build.gradle", "build.gradle.kts"} and os.path.basename(base) == "app":
-                      gradle_files.append(os.path.join(base, name))
-          for path in gradle_files:
-              data = open(path, encoding="utf-8").read()
-              data = data.replace('applicationId = "app.mihon"', 'applicationId = "app.comicko"')
-              data = data.replace('applicationId "app.mihon"', 'applicationId "app.comicko"')
-              open(path, "w", encoding="utf-8").write(data)
+          gradle_file = os.path.join(root, "app", "build.gradle.kts")
+          with open(gradle_file, encoding="utf-8") as f:
+              data = f.read()
+          data = data.replace('applicationId = "eu.kanade.tachiyomi"', 'applicationId = "app.comicko"')
+          with open(gradle_file, "w", encoding="utf-8") as f:
+              f.write(data)
 
           for base, dirs, files in os.walk(root):
               dirs[:] = [d for d in dirs if d not in {".git", ".gradle", "build"}]
               for name in files:
-                  if name.endswith(".xml"):
-                      path = os.path.join(base, name)
-                      try:
-                          data = open(path, encoding="utf-8").read()
-                      except (UnicodeDecodeError, OSError):
-                          continue
-                      updated = re.sub(
-                          r'(<string\s+name="app_name"[^>]*>)(.*?)(</string>)',
-                          lambda m: m.group(1) + "Comicko" + m.group(3)
-                          if "Mihon" in m.group(2) or "mihon" in m.group(2).lower()
-                          else m.group(0),
-                          data,
-                          flags=re.DOTALL,
-                      )
-                      if updated != data:
-                          open(path, "w", encoding="utf-8").write(updated)
-          print("Applied branding where the expected Mihon settings were found.")
+                  if name != "strings.xml":
+                      continue
+                  path = os.path.join(base, name)
+                  try:
+                      with open(path, encoding="utf-8") as f:
+                          data = f.read()
+                  except (OSError, UnicodeDecodeError):
+                      continue
+                  updated = re.sub(
+                      r'(<string\s+name="app_name"[^>]*>).*?(</string>)',
+                      r'\1Comicko\2',
+                      data,
+                      flags=re.DOTALL,
+                  )
+                  if updated != data:
+                      with open(path, "w", encoding="utf-8") as f:
+                          f.write(updated)
+          print("Comicko application ID and app display names applied.")
           PY
-
-      - name: Ensure default locale metadata
-        shell: bash
-        run: |
-          set -euo pipefail
-          RES_DIR="$PROJECT_ROOT/app/src/main/res"
-          mkdir -p "$RES_DIR"
-          if [ ! -f "$RES_DIR/resources.properties" ]; then
-            printf "unqualifiedResLocale=en-US\\n" > "$RES_DIR/resources.properties"
-          fi
 
       - name: Build universal debug APK
         shell: bash
         run: |
           set -euo pipefail
           cd "$PROJECT_ROOT"
-          gradle --no-daemon :app:assembleUniversalDebug
+          chmod +x ./gradlew
+          ./gradlew --no-daemon :app:assembleStandardDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: comicko-debug-apk
-          path: |
-            source/**/build/outputs/apk/**/*.apk
+          path: source/yokai/app/build/outputs/apk/**/*.apk
           if-no-files-found: error
           retention-days: 14
