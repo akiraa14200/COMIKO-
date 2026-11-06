@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101114">
+  <meta name="description" content="Strawhat Pirate — a browser-based manga library and reader.">
+  <title>Strawhat Pirate</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="#" aria-label="Strawhat Pirate home">
+        <span class="brand-mark">☠</span><span>STRAW HAT <b>PIRATE</b></span>
+      </a>
+      <div class="side-label">LIBRARY</div>
+      <nav class="nav-list" aria-label="Main navigation">
+        <button class="nav-item active" data-page="discover"><span>⌕</span> Discover</button>
+        <button class="nav-item" data-page="library"><span>▤</span> My Library</button>
+        <button class="nav-item" data-page="history"><span>◷</span> Reading history</button>
+        <button class="nav-item" data-page="local"><span>▧</span> Local files</button>
+      </nav>
+      <div class="side-label second-label">PREFERENCES</div>
+      <nav class="nav-list">
+        <button class="nav-item" data-page="settings"><span>⚙</span> Settings</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="sync-dot"></div>
+        <div><strong>Private library</strong><small>Your reading data stays in this browser.</small></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="mobile-menu" id="mobileMenu" aria-label="Open menu">☰</button>
+        <div class="breadcrumb">THE GRAND LINE <span>/</span> <b id="pageName">DISCOVER</b></div>
+        <div class="top-actions">
+          <label class="search-box"><span>⌕</span><input id="globalSearch" type="search" placeholder="Search your library..." autocomplete="off"></label>
+          <button class="avatar" title="Local profile">P</button>
+        </div>
+      </header>
+
+      <section class="page active" id="page-discover">
+        <div class="hero">
+          <div class="hero-content">
+            <div class="eyebrow"><i></i> YOUR NEXT ADVENTURE STARTS HERE</div>
+            <h1>Set sail for<br><em>your next story.</em></h1>
+            <p>A clean home for your manga collection. Add your own files, keep your place, and read comfortably on any screen.</p>
+            <div class="hero-actions">
+              <button class="primary-btn" data-go="local">＋ Add local manga</button>
+              <button class="ghost-btn" data-go="library">Open my library <span>↗</span></button>
+            </div>
+          </div>
+          <div class="hero-art" aria-hidden="true"><div class="sun"></div><div class="wave wave-one"></div><div class="wave wave-two"></div><div class="skull">☠</div><div class="hero-caption">ADVENTURE<br>AWAITS</div></div>
+        </div>
+        <div class="section-heading">
+          <div><div class="eyebrow muted">START READING</div><h2>Your reading space</h2></div>
+        </div>
+        <div class="feature-grid">
+          <button class="feature-card" data-go="local"><span class="feature-icon">▧</span><strong>Import local chapters</strong><small>Open image files from your device and read them in order.</small><span class="feature-arrow">↗</span></button>
+          <button class="feature-card" data-go="library"><span class="feature-icon">▤</span><strong>Build your library</strong><small>Save titles and keep a personal reading list in this browser.</small><span class="feature-arrow">↗</span></button>
+          <button class="feature-card" data-go="history"><span class="feature-icon">◷</span><strong>Continue reading</strong><small>Return to your recently opened local chapters.</small><span class="feature-arrow">↗</span></button>
+        </div>
+        <div class="notice"><span>ⓘ</span><div><strong>Online catalogue not connected yet</strong><p>This first web build supports your local manga files. Online source and extension compatibility needs a separate web-safe integration; Android extensions cannot run directly in a browser.</p></div></div>
+      </section>
+
+      <section class="page" id="page-library">
+        <div class="page-intro"><div class="eyebrow muted">YOUR COLLECTION</div><h1>My Library</h1><p>Everything you add to your personal reading space.</p></div>
+        <div class="toolbar"><div class="filter-tabs"><button class="filter active" data-filter="all">All</button><button class="filter" data-filter="reading">Reading</button><button class="filter" data-filter="planned">Planned</button><button class="filter" data-filter="completed">Completed</button></div><button class="primary-btn small" data-go="local">＋ Import files</button></div>
+        <div class="empty-state" id="libraryEmpty"><div class="empty-icon">▤</div><h3>Your library is waiting</h3><p>Import local manga files to start building your collection.</p><button class="primary-btn" data-go="local">Import manga</button></div>
+        <div class="library-grid" id="libraryGrid"></div>
+      </section>
+
+      <section class="page" id="page-history">
+        <div class="page-intro"><div class="eyebrow muted">PICK UP WHERE YOU LEFT OFF</div><h1>Reading history</h1><p>Your recently opened chapters on this device.</p></div>
+        <div class="empty-state" id="historyEmpty"><div class="empty-icon">◷</div><h3>No reading history yet</h3><p>Open a local chapter and it will appear here.</p><button class="primary-btn" data-go="local">Open local files</button></div>
+        <div class="history-list" id="historyList"></div>
+      </section>
+
+      <section class="page" id="page-local">
+        <div class="page-intro"><div class="eyebrow muted">ON THIS DEVICE</div><h1>Local files</h1><p>Import image chapters from your device. Files are not uploaded to a server.</p></div>
+        <div class="import-panel">
+          <div class="upload-symbol">↑</div><h3>Bring your own chapters</h3><p>Select one or more page images. For best results, choose pages in reading order.</p>
+          <label class="primary-btn file-button">Choose page images<input id="fileInput" type="file" accept="image/*" multiple></label>
+          <small>Supported: JPG, PNG, WEBP, GIF and other browser-supported images.</small>
+        </div>
+        <div id="localPreview" class="local-preview"></div>
+      </section>
+
+      <section class="page" id="page-settings">
+        <div class="page-intro"><div class="eyebrow muted">MAKE IT YOURS</div><h1>Settings</h1><p>Reader preferences for this browser.</p></div>
+        <div class="settings-panel">
+          <div class="setting-row"><div><strong>Reading direction</strong><small>Choose how pages advance.</small></div><select id="direction"><option value="ltr">Left to right</option><option value="rtl">Right to left</option><option value="vertical">Vertical scroll</option></select></div>
+          <div class="setting-row"><div><strong>Fit pages to screen</strong><small>Keep full page images visible.</small></div><input id="fitPages" type="checkbox" checked></div>
+          <div class="setting-row"><div><strong>Clear local data</strong><small>Remove this browser's library and reading history.</small></div><button class="danger-btn" id="clearData">Clear data</button></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <section class="reader" id="reader" aria-label="Manga reader" hidden>
+    <header class="reader-top"><button id="closeReader" class="reader-close">← Back</button><div><strong id="readerTitle">Local chapter</strong><small id="readerCount">0 pages</small></div><div class="reader-controls"><button id="prevPage" aria-label="Previous page">←</button><span id="pageCounter">0 / 0</span><button id="nextPage" aria-label="Next page">→</button></div></header>
+    <div class="reader-stage" id="readerStage"><div class="reader-empty">Choose local page images to begin reading.</div></div>
+    <footer class="reader-bottom"><input type="range" id="pageSlider" min="1" max="1" value="1"><span>LOCAL READER</span></footer>
+  </section>
+  <script src="./app.js"></script>
+</body>
+</html>
