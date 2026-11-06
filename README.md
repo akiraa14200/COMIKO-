@@ -1,45 +1,28 @@
-# Comicko
+# Strawhat Pirate Web
 
-Comicko is an Android manga and manhwa reader build based on the open-source [Yōkai](https://github.com/null2264/yokai) project, itself a fork in the Mihon/Tachiyomi family.
+A responsive browser-based companion for the Strawhat Pirate Android app.
 
-## Features inherited from Yōkai
+## Features
 
-- Manga library and chapter tracking
-- Online sources through compatible extensions/repositories
-- Configurable reading modes, including webtoon-style reading
-- Offline reading of downloaded chapters and local manga
-- Categories, library updates, backups, and reading progress
-- Tracker integrations supported by upstream
+- Browser-style address/search bar and embedded website view, with an option to open sites in a separate tab when embedding is refused.
+- Local destination-domain guard using the domain list from the Android app.
+- Anime and Manga site catalogue loaded from the same public Google Sheets CSV sources as Android.
+- Saved websites and browsing history stored locally in browser storage.
+- Built-in music search using public Piped API instances and YouTube embedded playback.
+- Responsive desktop and mobile interface, settings, and compact now-playing controls.
 
-## Build an APK
+## Run and deploy
 
-Open **Actions → Build Comicko APK** in this repository. The workflow checks out the upstream Yōkai source, applies the Comicko application ID and display name, builds the standard debug variant, and uploads the APK as the `comicko-debug-apk` artifact.
+This is a static HTML/CSS/JavaScript application. Open index.html through a static server or deploy this branch to Vercel, Netlify, or GitHub Pages. No package installation or build command is required.
 
-The source is fetched from upstream during the build; this repository currently contains the build workflow rather than a full copy of all Yōkai source files.
+## Important web-platform differences
 
-## Extensions and content
+This is a web companion, not a one-to-one port of Android WebView:
 
-Comicko does not host manga chapters. Available content depends on the sources/extensions the user chooses and the rights those providers have to distribute it. Extension compatibility depends on the upstream reader version.
+- Browsers do not let a normal website inspect or block every subresource request made inside a cross-origin iframe. The domain guard checks the destination URL before opening it; it is not a full network-level ad/tracker blocker.
+- Many sites send X-Frame-Options or Content-Security-Policy headers that forbid embedding. Use Open in new tab for those sites.
+- Cross-origin iframe history/back-forward controls are limited by browser security.
+- Music search depends on public third-party Piped instances, which can be unavailable, rate-limited, or block browser CORS requests. Playback uses the YouTube IFrame Player and follows YouTube's availability and playback rules.
+- Saved links and history use local browser storage. They do not sync with the Android app or another device.
 
-## Credits and license
-
-Yōkai is licensed under Apache-2.0. This project must retain the upstream license and attribution notices when redistributing source or binaries. See the [Yōkai source repository](https://github.com/null2264/yokai) and its `LICENSE` file for the applicable terms. Third-party dependencies and extensions retain their own licenses.
-
-
-## Strawhat Pirate web build
-
-The `strawhat-pirate-web` branch also contains an independent, responsive browser-based starter for the reader:
-
-- Responsive desktop and mobile layout
-- Local image-page import and in-browser reading
-- Left-to-right, right-to-left, and vertical reading modes
-- Page navigation, keyboard controls, and fit-to-screen setting
-- Personal library status labels and reading-session history
-
-### Run locally
-
-Open `index.html` in a modern browser, or serve this branch with any static web host. No package installation or build step is required.
-
-### Current web limitations
-
-This is a first web implementation, not a browser port of the Android extension runtime. Android/Kotlin extensions cannot be executed directly in a browser. The web build currently reads user-selected image files locally; it does not yet connect to online manga sources, sync the Android library, or persist the selected page-image files after the browser tab is closed. Those capabilities need a separate web-compatible source/API and storage integration.
+The Android app's source catalogue URLs and initial domain block list were used as implementation references. No manga chapters or music are hosted by this project.
