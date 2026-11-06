@@ -6,6 +6,7 @@
   let currentFiles = [];
   let currentIndex = 0;
   let objectUrls = [];
+  let readerUrl = null;
 
   function loadState() {
     try { return JSON.parse(localStorage.getItem(STORE)) || {library:[],history:[],direction:"ltr",fit:true}; }
@@ -108,7 +109,9 @@
     const stage=$("#readerStage"), file=currentFiles[currentIndex];
     stage.innerHTML="";
     stage.classList.toggle("vertical",state.direction==="vertical");
-    const img=document.createElement("img"); img.src=URL.createObjectURL(file); img.alt=file.name;
+    const img=document.createElement("img");
+    if(readerUrl) URL.revokeObjectURL(readerUrl);
+    readerUrl=URL.createObjectURL(file); img.src=readerUrl; img.alt=file.name;
     img.style.maxHeight=state.fit&&state.direction!=="vertical"?"calc(100vh - 130px)":"none";
     img.style.maxWidth=state.fit?"100%":"none";
     stage.append(img);
