@@ -1,148 +1,30 @@
-(() => {
-  const $ = (s, root=document) => root.querySelector(s);
-  const $$ = (s, root=document) => [...root.querySelectorAll(s)];
-  const STORE = "strawhat-pirate-web-v1";
-  let state = loadState();
-  let currentFiles = [];
-  let currentIndex = 0;
-  let objectUrls = [];
-  let readerUrl = null;
-
-  function loadState() {
-    try { return JSON.parse(localStorage.getItem(STORE)) || {library:[],history:[],direction:"ltr",fit:true}; }
-    catch { return {library:[],history:[],direction:"ltr",fit:true}; }
-  }
-  function saveState() { localStorage.setItem(STORE, JSON.stringify(state)); }
-  function navigate(page) {
-    $$(".page").forEach(el => el.classList.toggle("active", el.id === "page-" + page));
-    $$(".nav-item").forEach(el => el.classList.toggle("active", el.dataset.page === page));
-    $("#pageName").textContent = page.toUpperCase();
-    $("#sidebar").classList.remove("open");
-    render();
-  }
-  $$(".nav-item").forEach(btn => btn.addEventListener("click", () => navigate(btn.dataset.page)));
-  $$("[data-go]").forEach(btn => btn.addEventListener("click", () => navigate(btn.dataset.go)));
-  $("#mobileMenu").addEventListener("click", () => $("#sidebar").classList.toggle("open"));
-
-  function addToLibrary(file) {
-    const key = file.name + ":" + file.size;
-    if (!state.library.some(item => item.key === key)) {
-      state.library.unshift({key,title:file.name.replace(/\.[^.]+$/,""),status:"planned",cover:""});
-      saveState();
-    }
-  }
-  function renderLibrary() {
-    const grid = $("#libraryGrid"), empty = $("#libraryEmpty");
-    grid.innerHTML = "";
-    empty.hidden = state.library.length > 0;
-    state.library.forEach(item => {
-      const card = document.createElement("article");
-      card.className = "library-card";
-      const image = document.createElement("div");
-      image.style.height = "115px";
-      image.style.display = "grid";
-      image.style.placeItems = "center";
-      image.style.background = "linear-gradient(140deg,#3a3020,#202328)";
-      image.style.color = "#e8bd65";
-      image.style.fontSize = "30px";
-      image.textContent = "▤";
-      const body = document.createElement("div");
-      const title = document.createElement("strong");
-      title.textContent = item.title;
-      const select = document.createElement("select");
-      [["reading","Reading"],["planned","Planned"],["completed","Completed"]].forEach(([value,label]) => {
-        const option = document.createElement("option"); option.value=value; option.textContent=label; select.append(option);
-      });
-      select.value = item.status;
-      select.addEventListener("change", () => { item.status=select.value; saveState(); });
-      body.append(title,select); card.append(image,body); grid.append(card);
-    });
-  }
-  function renderHistory() {
-    const list=$("#historyList"), empty=$("#historyEmpty");
-    list.innerHTML="";
-    empty.hidden=state.history.length>0;
-    state.history.slice(0,30).forEach(entry=>{
-      const row=document.createElement("div"); row.className="history-item";
-      const icon=document.createElement("div"); icon.textContent="▧"; icon.style.cssText="width:44px;height:55px;display:grid;place-items:center;background:#302819;color:#e9bc60;border-radius:5px;font-size:20px";
-      const text=document.createElement("div"), title=document.createElement("strong"), meta=document.createElement("small");
-      title.textContent=entry.title; meta.textContent=entry.pages+" pages · "+new Date(entry.time).toLocaleString();
-      text.append(title,meta); row.append(icon,text); list.append(row);
-    });
-  }
-  function render() { renderLibrary(); renderHistory(); }
-  $$(".filter").forEach(btn=>btn.addEventListener("click",()=>{
-    $$(".filter").forEach(x=>x.classList.toggle("active",x===btn));
-    const filter=btn.dataset.filter;
-    $$(".library-card").forEach((card,i)=>{card.hidden=filter!=="all"&&state.library[i]?.status!==filter});
-  }));
-
-  $("#fileInput").addEventListener("change", event=>{
-    const files=[...event.target.files].filter(file=>file.type.startsWith("image/"));
-    if(!files.length) return;
-    currentFiles=files.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:"base"}));
-    currentFiles.forEach(addToLibrary);
-    render();
-    $("#localPreview").innerHTML="";
-    currentFiles.forEach((file,index)=>{
-      const card=document.createElement("button"); card.className="local-thumb"; card.type="button";
-      const img=document.createElement("img"); const url=URL.createObjectURL(file); objectUrls.push(url); img.src=url; img.alt=file.name;
-      const name=document.createElement("span"); name.textContent=file.name;
-      card.append(img,name); card.addEventListener("click",()=>openReader(index)); $("#localPreview").append(card);
-    });
-    openReader(0);
-    event.target.value="";
-  });
-
-  function openReader(index) {
-    if(!currentFiles.length) return;
-    currentIndex=Math.max(0,Math.min(index,currentFiles.length-1));
-    $("#reader").hidden=false;
-    $("#readerTitle").textContent=currentFiles[0].name.replace(/\.[^.]+$/,"");
-    $("#readerCount").textContent=currentFiles.length+" pages";
-    updateReader();
-    const title=currentFiles[0].name.replace(/\.[^.]+$/,"");
-    state.history.unshift({title,pages:currentFiles.length,time:Date.now()});
-    state.history=state.history.slice(0,30); saveState(); renderHistory();
-  }
-  function updateReader() {
-    const stage=$("#readerStage"), file=currentFiles[currentIndex];
-    stage.innerHTML="";
-    stage.classList.toggle("vertical",state.direction==="vertical");
-    const img=document.createElement("img");
-    if(readerUrl) URL.revokeObjectURL(readerUrl);
-    readerUrl=URL.createObjectURL(file); img.src=readerUrl; img.alt=file.name;
-    img.style.maxHeight=state.fit&&state.direction!=="vertical"?"calc(100vh - 130px)":"none";
-    img.style.maxWidth=state.fit?"100%":"none";
-    stage.append(img);
-    $("#pageCounter").textContent=(currentIndex+1)+" / "+currentFiles.length;
-    $("#pageSlider").max=currentFiles.length; $("#pageSlider").value=currentIndex+1;
-    $("#prevPage").disabled=currentIndex===0; $("#nextPage").disabled=currentIndex===currentFiles.length-1;
-  }
-  function step(amount) { if(!currentFiles.length)return; currentIndex=Math.max(0,Math.min(currentFiles.length-1,currentIndex+amount)); updateReader(); }
-  $("#prevPage").addEventListener("click",()=>step(state.direction==="rtl"?1:-1));
-  $("#nextPage").addEventListener("click",()=>step(state.direction==="rtl"?-1:1));
-  $("#pageSlider").addEventListener("input",e=>{currentIndex=Number(e.target.value)-1;updateReader()});
-  $("#closeReader").addEventListener("click",()=>$("#reader").hidden=true);
-  document.addEventListener("keydown",e=>{
-    if($("#reader").hidden)return;
-    if(e.key==="Escape")$("#reader").hidden=true;
-    if(e.key==="ArrowRight")step(state.direction==="rtl"?-1:1);
-    if(e.key==="ArrowLeft")step(state.direction==="rtl"?1:-1);
-  });
-  $("#direction").value=state.direction;
-  $("#direction").addEventListener("change",e=>{state.direction=e.target.value;saveState();if(!$("#reader").hidden)updateReader()});
-  $("#fitPages").checked=state.fit;
-  $("#fitPages").addEventListener("change",e=>{state.fit=e.target.checked;saveState();if(!$("#reader").hidden)updateReader()});
-  $("#clearData").addEventListener("click",()=>{
-    if(!confirm("Clear this browser's saved library and reading history? Local files on your device will not be deleted."))return;
-    state.library=[];state.history=[];saveState();render();
-  });
-  $("#globalSearch").addEventListener("input",e=>{
-    const query=e.target.value.trim().toLowerCase();
-    if(!query)return;
-    navigate("library");
-    $$(".library-card").forEach(card=>card.hidden=!card.textContent.toLowerCase().includes(query));
-  });
-  render();
+(()=>{const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],KEY='strawhat-pirate-web-v2',ANIME='https://docs.google.com/spreadsheets/d/1VLCJE_YxSQlPbjQojaFTy1ZzrmpitetsAXDgTUpbHzs/export?format=csv',MANGA='https://docs.google.com/spreadsheets/d/1VLCJE_YxSQlPbjQojaFTy1ZzrmpitetsAXDgTUpbHzs/gviz/tq?tqx=out:csv&sheet=Sheet2',BLOCKED=new Set('doubleclick.net googlesyndication.com googleadservices.com adservice.google.com adnxs.com adsrvr.org advertising.com adform.net adroll.com criteo.com taboola.com outbrain.com popads.net popcash.net propellerads.com exoclick.com adsterra.com yllix.com trafficjunky.net mgid.com revcontent.com zedo.com smartadserver.com rubiconproject.com openx.net pubmatic.com casalemedia.com lijit.com sharethrough.com bidvertiser.com hilltopads.net onclickads.net pushengage.com pushwoosh.com adpushup.com adskeeper.co.uk ad-maven.com juicyads.com adcash.com popunder.net popunderjs.com onclickmega.com trafficstars.com adf.ly shorte.st clk.sh linkvertise.com loot-link.com lootlinks.co adsco.re a-ads.com adfoc.us cointraffic.io monetag.com galaksion.com dtscout.com tsyndicate.com exosrv.com adnium.com adspyglass.com popunder.com ad-delivery.net adnami.io admanmedia.com admedo.com adnetwork.vn'.split(' '));let state=load(),cat='Anime',catalogue={Anime:[],Manga:[]},loaded={},currentUrl='',queue=[],track=-1,yt=null,ytReady=false;
+function load(){try{return Object.assign({saved:[],history:[],protection:true,external:false,remember:true,lastUrl:''},JSON.parse(localStorage.getItem(KEY)||'{}'))}catch{return {saved:[],history:[],protection:true,external:false,remember:true,lastUrl:''}}}function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch{toast('Browser storage is full')}}function toast(s){$('#toast').textContent=s;clearTimeout(toast.t);toast.t=setTimeout(()=>$('#toast').textContent='',2400)}
+function go(p){$$('.page').forEach(x=>x.classList.toggle('active',x.id==='page-'+p));$$('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===p));$('#crumb').textContent=p.toUpperCase();$('#sidebar').classList.remove('open');if(p==='catalogue')loadCatalogue(cat);if(p==='saved')renderSaved();if(p==='history')renderHistory();if(p==='home')renderRecent();if(p==='music')renderQueue()}$$('[data-page]').forEach(x=>x.onclick=()=>go(x.dataset.page));$$('[data-go]').forEach(x=>x.onclick=()=>go(x.dataset.go));$('#mobileMenu').onclick=()=>$('#sidebar').classList.toggle('open');
+function host(u){try{return new URL(u).hostname.toLowerCase().replace(/^www\./,'')}catch{return ''}}function isBlocked(u){let h=host(u);return [...BLOCKED].some(d=>h===d||h.endsWith('.'+d))}function normalize(v){v=v.trim();if(!v)return '';if(!/^[a-z][a-z0-9+.-]*:\/\//i.test(v)){if(v.includes(' ')||!v.includes('.'))return 'https://www.google.com/search?q='+encodeURIComponent(v);v='https://'+v}try{let u=new URL(v);return ['http:','https:'].includes(u.protocol)?u.href:''}catch{return ''}}
+function protectUI(){let on=!!state.protection;$('#protectText').textContent=on?'PROTECTION ON':'PROTECTION OFF';$('#protectionLabel').textContent=on?'Protection enabled':'Protection paused';$('#settingProtection').checked=on;$('#protectToggle .dot').style.background=on?'var(--green)':'#d96e61'}
+function visit(raw){let u=normalize(raw);if(!u){toast('Enter a valid website or search term');return}if(state.protection&&isBlocked(u)){toast('Blocked destination: '+host(u));$('#browserStatus').textContent='Blocked by destination domain guard · '+host(u);if(state.external)window.open(u,'_blank','noopener,noreferrer');return}currentUrl=u;$('#addressInput').value=u;$('#browserPlaceholder').hidden=true;$('#webFrame').hidden=false;$('#webFrame').src=u;$('#openExternal').hidden=false;$('#saveCurrent').disabled=false;$('#browserStatus').textContent='Opening '+host(u)+' · Some websites refuse embedded viewing';state.history=state.history.filter(x=>x.url!==u);state.history.unshift({url:u,host:host(u),time:Date.now()});state.history=state.history.slice(0,100);if(state.remember)state.lastUrl=u;save();renderRecent()}
+$('#addressForm').onsubmit=e=>{e.preventDefault();visit($('#addressInput').value)};$('#openExternal').onclick=()=>currentUrl&&window.open(currentUrl,'_blank','noopener,noreferrer');$('#saveCurrent').onclick=()=>{if(!currentUrl)return;if(!state.saved.some(x=>x.url===currentUrl)){state.saved.unshift({url:currentUrl,host:host(currentUrl)});save();toast('Website saved')}else toast('Already saved')};
+$('#browserReload').onclick=()=>currentUrl&&($('#webFrame').src=currentUrl);$('#browserHome').onclick=()=>{currentUrl='';$('#webFrame').hidden=true;$('#webFrame').src='about:blank';$('#browserPlaceholder').hidden=false;$('#addressInput').value='';$('#openExternal').hidden=true;$('#saveCurrent').disabled=true;$('#browserStatus').textContent='Ready · Some websites refuse embedded viewing'};$('#browserBack').onclick=()=>{try{$('#webFrame').contentWindow.history.back()}catch{toast('This site blocks embedded navigation')}};$('#browserForward').onclick=()=>{try{$('#webFrame').contentWindow.history.forward()}catch{toast('This site blocks embedded navigation')}};
+$('#protectToggle').onclick=()=>{state.protection=!state.protection;save();protectUI()};$('#settingProtection').onchange=e=>{state.protection=e.target.checked;save();protectUI()};$('#settingExternal').onchange=e=>{state.external=e.target.checked;save()};$('#settingRemember').onchange=e=>{state.remember=e.target.checked;if(!state.remember)state.lastUrl='';save()};
+function makeRow(x,cls){let r=document.createElement('div');r.className='list-row';let info=document.createElement('div'),b=document.createElement('b'),s=document.createElement('small');b.textContent=x.host||x.name;s.textContent=x.url;info.append(b,s);r.append(info);return r}
+function renderRecent(){let root=$('#homeRecent');root.innerHTML='';if(!state.history.length){root.innerHTML='<div class="empty">Your recent websites will appear here.</div>';return}state.history.slice(0,5).forEach(x=>{let r=makeRow(x,'recent'),b=document.createElement('button');b.textContent='Open';b.onclick=()=>{go('browser');visit(x.url)};r.append(b);root.append(r)})}
+function renderSaved(){let root=$('#savedList');root.innerHTML='';if(!state.saved.length){root.innerHTML='<div class="empty">☆<b>No saved websites yet</b><small>Open a website and save it to see it here.</small></div>';return}state.saved.forEach(x=>{let r=makeRow(x,'saved'),o=document.createElement('button'),d=document.createElement('button');o.textContent='Open';d.textContent='Remove';o.onclick=()=>{go('browser');visit(x.url)};d.onclick=()=>{state.saved=state.saved.filter(y=>y.url!==x.url);save();renderSaved()};r.append(o,d);root.append(r)})}
+function renderHistory(){let root=$('#historyList');root.innerHTML='';if(!state.history.length){root.innerHTML='<div class="empty">◷<b>No browsing history</b></div>';return}state.history.forEach(x=>{let r=makeRow(x,'history'),s=document.createElement('small'),o=document.createElement('button');s.textContent=new Date(x.time).toLocaleString();r.firstChild.append(s);o.textContent='Open';o.onclick=()=>{go('browser');visit(x.url)};r.append(o);root.append(r)})}
+$('#clearHistory').onclick=()=>{state.history=[];save();renderHistory();renderRecent();toast('History cleared')};
+function parseCSV(s){let rows=[],r=[],c='',q=false;for(let i=0;i<s.length;i++){let x=s[i];if(x==='"'&&q&&s[i+1]==='"'){c+='"';i++}else if(x==='"')q=!q;else if(x===','&&!q){r.push(c.trim());c=''}else if((x==='\n'||x==='\r')&&!q){r.push(c.trim());c='';if(r.some(Boolean))rows.push(r);r=[];if(x==='\r'&&s[i+1]==='\n')i++}else c+=x}r.push(c.trim());if(r.some(Boolean))rows.push(r);if(!rows.length)return [];let h=rows[0].map(x=>x.replace(/^\uFEFF/,'').toLowerCase()),ni=h.findIndex(x=>['site name','sitename','name'].includes(x)),ui=h.findIndex(x=>['site url','siteurl','url'].includes(x));if(ni<0||ui<0)return [];return rows.slice(1).map(x=>({name:x[ni]||'',url:normalize(x[ui]||'')})).filter(x=>x.name&&x.url).filter((x,i,a)=>a.findIndex(y=>y.url===x.url)===i)}
+async function loadCatalogue(which,force=false){let root=$('#siteGrid');if(loaded[which]&&!force){renderCatalogue();return}$('#catalogueMeta').textContent='Loading '+which+' directory…';root.innerHTML='<div class="empty">Loading…</div>';try{let cached=localStorage.getItem('strawhat-catalogue-'+which);if(cached&&!force){catalogue[which]=JSON.parse(cached);loaded[which]=true;renderCatalogue();return}let r=await fetch(which==='Anime'?'https://docs.google.com/spreadsheets/d/1VLCJE_YxSQlPbjQojaFTy1ZzrmpitetsAXDgTUpbHzs/export?format=csv':'https://docs.google.com/spreadsheets/d/1VLCJE_YxSQlPbjQojaFTy1ZzrmpitetsAXDgTUpbHzs/gviz/tq?tqx=out:csv&sheet=Sheet2',{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);let list=parseCSV(await r.text());if(!list.length)throw Error('No valid catalogue rows');catalogue[which]=list;loaded[which]=true;try{localStorage.setItem('strawhat-catalogue-'+which,JSON.stringify(list))}catch{}renderCatalogue()}catch(e){$('#catalogueMeta').textContent='Catalogue unavailable · '+e.message;root.innerHTML='<div class="empty">Could not load the spreadsheet. Check connection and refresh.</div>'}}
+function renderCatalogue(){let all=catalogue[cat]||[],q=$('#catalogueSearch').value.toLowerCase().trim(),items=all.filter(x=>(x.name+' '+x.url).toLowerCase().includes(q));$('#catalogueMeta').textContent=items.length+' of '+all.length+' '+cat+' websites';let root=$('#siteGrid');root.innerHTML='';if(!items.length){root.innerHTML='<div class="empty">No matching websites.</div>';return}items.forEach(x=>{let card=document.createElement('div'),icon=document.createElement('span'),info=document.createElement('div'),b=document.createElement('b'),s=document.createElement('small'),open=document.createElement('button'),saveBtn=document.createElement('button');card.className='site-card';icon.textContent=cat==='Anime'?'▶':'▤';b.textContent=x.name;s.textContent=host(x.url);info.append(b,s);open.textContent='Open';saveBtn.textContent='☆';open.onclick=()=>{go('browser');visit(x.url)};saveBtn.onclick=()=>{if(!state.saved.some(y=>y.url===x.url)){state.saved.unshift({url:x.url,host:x.name});save();toast('Website saved')}else toast('Already saved')};card.append(icon,info,open,saveBtn);root.append(card)})}
+$$('[data-category]').forEach(x=>x.onclick=()=>{cat=x.dataset.category;$$('[data-category]').forEach(y=>y.classList.toggle('active',y===x));loadCatalogue(cat)});$('#catalogueSearch').oninput=renderCatalogue;$('#refreshCatalogue').onclick=()=>{loaded[cat]=false;loadCatalogue(cat,true)};
+$('#clearAll').onclick=()=>{if(!confirm('Clear saved websites, history and settings?'))return;localStorage.removeItem(KEY);state=load();protectUI();$('#settingExternal').checked=false;$('#settingRemember').checked=true;renderSaved();renderHistory();renderRecent();toast('Local data cleared')};
+window.onYouTubeIframeAPIReady=()=>{if(!window.YT)return;yt=new YT.Player('ytPlayer',{height:'1',width:'1',videoId:'',playerVars:{playsinline:1,controls:0,rel:0},events:{onReady:()=>ytReady=true,onStateChange:e=>{if(e.data===YT.PlayerState.ENDED)playTrack(track+1)}}})};
+const PIPED=['https://pipedapi.adminforge.de','https://pipedapi.reallyaweso.me','https://api.piped.private.coffee','https://pipedapi.kavin.rocks','https://pipedapi.moomoo.me'];
+async function searchMusic(q){let reason='No Piped instance responded';for(let base of PIPED){let c=new AbortController(),t=setTimeout(()=>c.abort(),6500);try{let r=await fetch(base+'/search?q='+encodeURIComponent(q)+'&filter=music_songs',{signal:c.signal});if(!r.ok){reason='HTTP '+r.status;continue}let d=await r.json(),arr=Array.isArray(d.items)?d.items:(Array.isArray(d.results)?d.results:[]),out=arr.map(x=>{let raw=String(x.url||x.videoId||x.id||''),m=raw.match(/[?&]v=([\w-]{11})/)||raw.match(/youtu\.be\/([\w-]{11})/)||[null,/^[\w-]{11}$/.test(raw)?raw:''];if(!m[1])return null;let th=x.thumbnails,art=x.thumbnail||(Array.isArray(th)?(th[0]?.url||th[0]):'');return {id:m[1],title:x.title||x.name||'Unknown title',artist:x.uploaderName||x.uploader||x.author||'Unknown artist',art:art||'https://i.ytimg.com/vi/'+m[1]+'/mqdefault.jpg'}}).filter(Boolean);if(out.length)return out;reason='No tracks returned'}catch(e){reason=e.name==='AbortError'?'Timed out':e.message}finally{clearTimeout(t)}}throw Error(reason)}
+function renderTracks(items){let root=$('#trackList');root.innerHTML='';if(!items.length){root.innerHTML='<div class="empty">No tracks found</div>';return}items.forEach((x,i)=>{let row=document.createElement('div'),img=document.createElement('img'),info=document.createElement('div'),b=document.createElement('b'),s=document.createElement('small'),btn=document.createElement('button');row.className='track';img.src=x.art;img.alt='';b.textContent=x.title;s.textContent=x.artist;info.append(b,s);btn.textContent='▶ Play';btn.onclick=()=>{queue=items.slice();renderQueue();playTrack(i)};row.append(img,info,btn);root.append(row)})}
+$('#musicSearch').onsubmit=async e=>{e.preventDefault();let q=$('#musicQuery').value.trim();if(q.length<2)return;$('#musicMessage').textContent='Searching public Piped instances…';$('#trackList').textContent='Searching…';try{let items=await searchMusic(q);renderTracks(items);$('#musicMessage').textContent=items.length+' results · Third-party search services'}catch(err){$('#musicMessage').textContent='Search unavailable · '+err.message;$('#trackList').textContent='Piped instances may be offline or block browser CORS requests.'}};
+function playTrack(i){if(i<0||i>=queue.length)return;track=i;let x=queue[i];$('#npTitle').textContent=x.title;$('#npArtist').textContent=x.artist;$('#albumArt').innerHTML='<img src="'+x.art+'" alt="" style="width:100%;height:100%;object-fit:cover">';$('#miniArt').src=x.art;$('#miniTitle').textContent=x.title;$('#miniArtist').textContent=x.artist;$('#miniPlayer').hidden=false;renderQueue();if(ytReady&&yt){yt.loadVideoById(x.id)}else toast('YouTube player is loading; retry shortly')}
+function renderQueue(){let root=$('#queueList');$('#queueCount').textContent=queue.length+' tracks';root.innerHTML='';if(!queue.length){root.textContent='Your queue is empty.';return}queue.slice(0,8).forEach((x,i)=>{let d=document.createElement('div');d.className='queue-item';d.textContent=(i===track?'▶ ':'')+x.title;root.append(d)})}
+function togglePlay(){if(!ytReady||!yt)return;if(yt.getPlayerState()===YT.PlayerState.PLAYING)yt.pauseVideo();else yt.playVideo()}
+$('#musicPlay').onclick=$('#miniPlay').onclick=togglePlay;$('#musicNext').onclick=()=>playTrack(track+1);$('#musicPrev').onclick=()=>playTrack(track-1);$('#musicStop').onclick=()=>yt&&yt.stopVideo();$('#miniExpand').onclick=()=>go('music');$('#openMusic').onclick=()=>go('music');
+protectUI();$('#settingExternal').checked=state.external;$('#settingRemember').checked=state.remember;renderRecent();if(state.remember&&state.lastUrl){$('#addressInput').value=state.lastUrl;$('#browserStatus').textContent='Last website remembered · press GO to reopen'}
 })();
